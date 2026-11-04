@@ -1,4 +1,5 @@
 name: Android APK
+# Rebuild trigger for the updated full-screen clock implementation
 on:
   push:
     branches: [ main ]
