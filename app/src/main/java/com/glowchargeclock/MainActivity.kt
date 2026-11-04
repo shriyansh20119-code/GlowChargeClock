@@ -33,12 +33,8 @@ class MainActivity : Activity(), LocationListener {
     private lateinit var clockView: LiquidClockView
     private lateinit var tilt: TiltSensor
     private val handler = Handler(Looper.getMainLooper())
-
-    // power
     private var receiverRegistered = false
-    private var sawPlugged = false
 
-    // weather
     private var weatherTemp = "--°"
     private var weatherLabel = "Weather loading…"
     private var weatherCode = -1
@@ -53,10 +49,8 @@ class MainActivity : Activity(), LocationListener {
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
-                Intent.ACTION_POWER_DISCONNECTED -> {
-                    Log.i(TAG, "POWER_DISCONNECTED -> closing")
-                    finishAndRemoveTask()
-                }
+                Intent.ACTION_POWER_DISCONNECTED ->
+                    Log.i(TAG, "POWER_DISCONNECTED -> keeping clock open; show battery level")
                 Intent.ACTION_BATTERY_CHANGED -> handleBattery(intent)
             }
         }
@@ -68,8 +62,6 @@ class MainActivity : Activity(), LocationListener {
             handler.postDelayed(this, 10 * 60 * 1000L)
         }
     }
-
-    // ------------------------------------------------------------ lifecycle
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,7 +75,6 @@ class MainActivity : Activity(), LocationListener {
             window.attributes = lp
         }
         hideSystemBars()
-
         tilt = TiltSensor(this)
         clockView = LiquidClockView(this, tilt)
         setContentView(clockView)
@@ -96,7 +87,6 @@ class MainActivity : Activity(), LocationListener {
             addAction(Intent.ACTION_POWER_DISCONNECTED)
             addAction(Intent.ACTION_BATTERY_CHANGED)
         }
-        // BATTERY_CHANGED sticky hai: register karte hi current state mil jaati hai
         val sticky = registerReceiver(powerReceiver, filter)
         receiverRegistered = true
         if (sticky != null) handleBattery(sticky)
@@ -154,8 +144,6 @@ class MainActivity : Activity(), LocationListener {
         }
     }
 
-    // ------------------------------------------------------------ battery
-
     private fun handleBattery(intent: Intent) {
         val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
         val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
@@ -164,17 +152,7 @@ class MainActivity : Activity(), LocationListener {
         val full = status == BatteryManager.BATTERY_STATUS_FULL
         val pct = if (level >= 0 && scale > 0) level * 100 / scale else 0
         clockView.setBattery(pct, plugged, full)
-
-        if (plugged) {
-            sawPlugged = true
-        } else if (sawPlugged) {
-            // charger nikal diya -> clock band
-            Log.i(TAG, "Unplugged -> closing")
-            finishAndRemoveTask()
-        }
     }
-
-    // ------------------------------------------------------------ weather / location
 
     private fun pushWeather() {
         clockView.setWeather(weatherTemp, weatherLabel, weatherCode)
@@ -185,7 +163,6 @@ class MainActivity : Activity(), LocationListener {
             checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun setStatus(text: String) {
-        // sirf tab dikhao jab abhi tak koi valid weather nahi mila (purana data na mitaye)
         if (!hasWeather) {
             weatherLabel = text
             pushWeather()
@@ -256,7 +233,8 @@ class MainActivity : Activity(), LocationListener {
     override fun onProviderDisabled(provider: String) {}
 
     private fun fetchWeather(lat: Double, lon: Double) {
-        lastLat = lat; lastLon = lon
+        lastLat = lat
+        lastLon = lon
         if (SystemClock.elapsedRealtime() < nextFetchAt) return
         if (!fetching.compareAndSet(false, true)) return
         thread(name = "weather") {
@@ -290,7 +268,6 @@ class MainActivity : Activity(), LocationListener {
                 }
             } finally {
                 conn?.disconnect()
-                // success: 25 min baad; fail: 2 min baad dobara try
                 nextFetchAt = SystemClock.elapsedRealtime() + if (ok) 25 * 60 * 1000L else 2 * 60 * 1000L
                 fetching.set(false)
             }
@@ -317,10 +294,7 @@ class MainActivity : Activity(), LocationListener {
     }
 }
 
-/**
- * Charger lagte hi clock kholne ki koshish. Android 10+ / MIUI background se activity
- * kholna rok sakte hain — isliye ye "best effort" hai. Result logcat mein "GlowCharge" tag se dikhega.
- */
+/** Launch the clock when power is connected (best effort; MIUI may restrict background launches). */
 class PowerConnectedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_POWER_CONNECTED) {
