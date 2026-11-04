@@ -151,8 +151,7 @@ class LiquidClockView(context: Context, private val tilt: TiltSensor) : View(con
         val minuteDigits = minuteText.toCharArray()
         val hourTextWidth = textPaint.measureText(hourText)
         val minuteTextWidth = textPaint.measureText(minuteText)
-        val leftHour = hourX - hourWidth / 2f
-        drawDigitRun(canvas, hourText, leftHour, baseline, colors[0], colors[1])
+        drawDigitRun(canvas, hourText, hourX, baseline, colors[0], colors[1])
         drawDigitRun(canvas, minuteText, minuteX - minuteWidth / 2f, baseline, colors[1], colors[2])
 
         // Two soft grey-lilac dots; their opacity gently breathes.
